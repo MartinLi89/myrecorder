@@ -16,7 +16,7 @@ aux_source_directory(src/main/cpp/lamemp3 SRC_LIST)
 
 
 # 设置 *.so 文件输出路径，要放在在add_library之前，不然不会起作用
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/main/jniLibs/${ANDROID_ABI})
+#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/main/jniLibs/${ANDROID_ABI})
 
 # Creates and names a library, sets it as either STATIC
 # or SHARED, and provides the relative paths to its source code.
@@ -24,13 +24,13 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/main/jniLibs/${ANDR
 # Gradle automatically packages shared libraries with your APK.
 # 声明库名称、类型、源码文件
 add_library( # Sets the name of the library.
-        native-lib
+        mp3converter111
 
         # Sets the library as a shared library.
         SHARED
 
         # Provides a relative path to your source file(s).
-        src/main/cpp/native-lib.cpp
+        src/main/cpp/mp3converter.cpp
 
         ${SRC_LIST})
 
@@ -54,7 +54,7 @@ find_library( # Sets the name of the path variable.
 
 # 将NDK库链接到native库中，这样native库才能调用NDK库中的函数
 target_link_libraries( # Specifies the target library.
-        native-lib
+        mp3converter111
 
         # Links the target library to the log library
         # included in the NDK.

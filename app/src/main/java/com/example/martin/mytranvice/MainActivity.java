@@ -1,29 +1,150 @@
 package com.example.martin.mytranvice;
 
+import android.os.Environment;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
+
+import com.yanzhenjie.permission.Action;
+import com.yanzhenjie.permission.AndPermission;
+import com.yanzhenjie.permission.Permission;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
 	// Used to load the 'native-lib' library on application startup.
-	static {
-		System.loadLibrary("native-lib");
-	}
+
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
-		// Example of a call to a native method
-		TextView tv = (TextView) findViewById(R.id.sample_text);
-		tv.setText(stringFromJNI());
+
+		AndPermission.with(this)
+				.runtime()
+				.permission(Permission.Group.STORAGE)
+				.onGranted(new Action<List<String>>() {
+					@Override
+					public void onAction(List<String> data) {
+						init();
+					}
+				})
+				.start();
+
+
 	}
 
-	/**
-	 * A native method that is implemented by the 'native-lib' native library,
-	 * which is packaged with this application.
-	 */
-	public native String stringFromJNI();
+	final String wavPath = Environment.getExternalStorageDirectory().getPath() + File.separator + "test.wav";
+	final String mp3Path = Environment.getExternalStorageDirectory().getPath() + File.separator + "test.mp3";
+
+	private void init() {
+		new Thread(new Runnable() {
+			@Override
+			public void run() {
+				putAssetsToSDCard("test.wav", wavPath);
+			}
+		}).start();
+
+
+		// Example of a call to a native method
+		TextView tv = (TextView) findViewById(R.id.sample_text);
+		tv.setText(Mp3Converter.getLameVersion());
+		Button inits = findViewById(R.id.button);
+		inits.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+
+				try {
+
+					Mp3Converter.init_util(44100, 1, 0, 44100, 96, 7);
+				} catch (Exception e) {
+					e.printStackTrace();
+
+				}
+			}
+		});
+
+
+		findViewById(R.id.button2).setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+
+				try {
+
+					Mp3Converter.close();
+				} catch (Exception e) {
+					e.printStackTrace();
+
+				}
+			}
+		});
+
+		findViewById(R.id.button3).setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+
+				try {
+
+					new Thread(new Runnable() {
+						@Override
+						public void run() {
+							long start_time = System.currentTimeMillis();
+							Mp3Converter.convertMp3(wavPath, mp3Path);
+							Log.d(TAG, ((System.currentTimeMillis() - start_time) / 1000) + "");
+						}
+					}).start();
+
+
+				} catch (Exception e) {
+					e.printStackTrace();
+
+				}
+			}
+		});
+	}
+
+	public static String TAG = "mp3converter";
+
+	public void putAssetsToSDCard(String assetsPath,
+								  String sdCardPath) {
+		try {
+			String mString[] = getAssets().list(assetsPath);
+			if (mString.length == 0) { // 说明assetsPath为空,或者assetsPath是一个文件
+
+				File file = new File(sdCardPath);
+				if (!file.exists()) {
+					file.createNewFile(); // 创建文件
+					Log.d(TAG, "创建了新文件");
+				} else {
+					Log.d(TAG, "已经存在该文件啦");
+					return;//已经存在直接退出
+				}
+
+				InputStream mIs = getAssets().open(assetsPath); // 读取流
+
+				byte[] mbuffer = new byte[1024 * 4];
+				int bt = 0;
+				FileOutputStream fos = new FileOutputStream(file); // 写入流
+				while ((bt = mIs.read(mbuffer)) != -1) { // assets为文件,从文件中读取流
+					fos.write(mbuffer, 0, bt);// 写入流到文件中
+				}
+				fos.flush();// 刷新缓冲区
+				mIs.close();// 关闭读取流
+				fos.close();// 关闭写入流
+				Log.d(TAG, "文件写入完成");
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			Log.d(TAG, e.getMessage());
+		}
+	}
+
 }

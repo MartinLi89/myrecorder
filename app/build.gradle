@@ -12,7 +12,7 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags "-frtti -fexceptions"//设置cpp配置参数，c文件请使用CFlags
-                abiFilters 'armeabi-v7a','arm64-v8a','mips','armeabi','mips64' //要支持的abi
+                abiFilters 'arm64-v8a','mips','armeabi','mips64','armeabi-v7a' //要支持的abi
             }
         }
     }
@@ -28,13 +28,13 @@ android {
         }
     }
     packagingOptions {
-        pickFirst 'lib/armeabi-v7a/liblame-mp3-utils.so'
-        pickFirst 'lib/arm64-v8a/liblame-mp3-utils.so'
-        pickFirst 'lib/armeabi/liblame-mp3-utils.so'
-        pickFirst 'lib/x86/liblame-mp3-utils.so'
-        pickFirst 'lib/mips/liblame-mp3-utils.so'
-        pickFirst 'lib/mips64/liblame-mp3-utils.so'
-        pickFirst 'lib/x86_64/liblame-mp3-utils.so'
+        exclude 'lib/armeabi-v7a/mp3converter.so'
+        exclude 'lib/arm64-v8a/mp3converter.so'
+        exclude 'lib/armeabi/mp3converter.so'
+        exclude 'lib/x86/mp3converter.so'
+        exclude 'lib/mips/mp3converter.so'
+        exclude 'lib/mips64/mp3converter.so'
+//        pickFirst 'lib/x86_64/liblame-mp3-utils.so'
     }
 
 }
@@ -44,6 +44,8 @@ dependencies {
     implementation 'com.android.support:appcompat-v7:28.0.0'
     implementation 'com.android.support.constraint:constraint-layout:1.1.3'
     testImplementation 'junit:junit:4.12'
+
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+    implementation 'com.yanzhenjie:permission:2.0.0-rc12'
 }
