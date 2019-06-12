@@ -3,6 +3,14 @@
 #include <lame.h>
 //#include "lamemp3/lame.h"
 #define BUFFER_SIZE 8192
+#include<android/log.h>
+
+#define  LOG    "HelloJni"
+#define LOGD(...)  __android_log_print(ANDROID_LOG_DEBUG,LOG,__VA_ARGS__) // 定义LOGD类型
+#define LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG,__VA_ARGS__) // 定义LOGI类型
+#define LOGW(...)  __android_log_print(ANDROID_LOG_WARN,LOG,__VA_ARGS__) // 定义LOGW类型
+#define LOGE(...)  __android_log_print(ANDROID_LOG_ERROR,LOG,__VA_ARGS__) // 定义LOGE类型
+
 
 //转码对象
 static lame_global_flags *lame = NULL;
@@ -42,6 +50,7 @@ void lameInit(jint inSampleRate,
     lame_set_out_samplerate(lame, outSampleRate);
     // 设置比特压缩率，默认为11 ，只有在CBR模式下才生效。
     lame_set_brate(lame, outBitRate);
+    //设置 动态比特率参数 只有在vbr模式下才生效
     lame_set_VBR_mean_bitrate_kbps(lame, outBitRate);
 
     // 编码质量，推荐2、5、7
