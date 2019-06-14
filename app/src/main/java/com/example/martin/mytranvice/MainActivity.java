@@ -17,6 +17,9 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.List;
 
+import demo.martin.simplerecorder.CoreManagerBuffer;
+import demo.martin.simplerecorder.CoreRecorderManager;
+
 public class MainActivity extends AppCompatActivity {
 
 	// Used to load the 'native-lib' library on application startup.
@@ -31,10 +34,13 @@ public class MainActivity extends AppCompatActivity {
 		AndPermission.with(this)
 				.runtime()
 				.permission(Permission.Group.STORAGE)
+				.permission(Permission.Group.MICROPHONE)
 				.onGranted(new Action<List<String>>() {
 					@Override
 					public void onAction(List<String> data) {
 						init();
+
+
 					}
 				})
 				.start();
@@ -45,6 +51,8 @@ public class MainActivity extends AppCompatActivity {
 	final String wavPath = Environment.getExternalStorageDirectory().getPath() + File.separator + "test.wav";
 	final String mp3Path = Environment.getExternalStorageDirectory().getPath() + File.separator + "test.mp3";
 
+	private long currentTime;
+
 	private void init() {
 		new Thread(new Runnable() {
 			@Override
@@ -53,18 +61,62 @@ public class MainActivity extends AppCompatActivity {
 			}
 		}).start();
 
+		Mp3Converter.init_util(44100, 1, 0, 44100, 96, 7);
 
 		// Example of a call to a native method
 		TextView tv = (TextView) findViewById(R.id.sample_text);
 		tv.setText(Mp3Converter.getLameVersion());
-		Button inits = findViewById(R.id.button);
-		inits.setOnClickListener(new View.OnClickListener() {
+		Button recorder = findViewById(R.id.button);
+		recorder.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
 
 				try {
+					CoreRecorderManager manager; //= CoreRecorderManager.getInstance();
+					CoreRecorderManager.RecorderBuilder builder = new CoreRecorderManager.RecorderBuilder();
+					builder.setCallbackInterval(100);
+					manager = builder.build();
 
-					Mp3Converter.init_util(44100, 1, 0, 44100, 96, 7);
+					manager.setCoreRecorderCallback(new CoreRecorderManager.CoreRecorderCallback() {
+						@Override
+						public void onRecorder(short[] pcmBuffer) {
+
+							long l = System.currentTimeMillis();
+							long time = l - currentTime;
+							currentTime = l;
+							Log.d(TAG, pcmBuffer.length + " 时间差为" + time);
+
+//							for (short i : pcmBuffer) {
+//								Log.d(TAG, i + "");
+//							}
+
+						}
+
+						@Override
+						public boolean onRecorderReady() {
+							return true;
+						}
+
+						@Override
+						public boolean onRecorderStart(int sampleRate, int channelCount, int audioFormat) {
+							return true;
+						}
+
+						@Override
+						public void onRecorderError(String errorMsg) {
+
+						}
+
+						@Override
+						public void onRecorderStop() {
+
+						}
+					});
+//					manager.recorderStart();
+
+					new CoreManagerBuffer(manager).recorderStart();
+
+//					manager.play();
 				} catch (Exception e) {
 					e.printStackTrace();
 
@@ -78,6 +130,8 @@ public class MainActivity extends AppCompatActivity {
 			public void onClick(View v) {
 
 				try {
+					CoreRecorderManager manager = CoreRecorderManager.getInstance();
+					manager.recorderStop();
 
 					Mp3Converter.close();
 				} catch (Exception e) {
