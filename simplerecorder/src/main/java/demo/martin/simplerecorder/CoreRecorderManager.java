@@ -3,10 +3,11 @@ package demo.martin.simplerecorder;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.support.annotation.Nullable;
-import android.util.Log;
+import android.os.Looper;
+import android.os.Message;
 
 /**
  * @author MartinLi 2019/6/12
@@ -42,6 +43,7 @@ public class CoreRecorderManager implements ManagerInterface {
 
 	/**
 	 * 用于录音类的回调 外部  获取录音数据的唯一方式
+	 * 均在子线程中进行
 	 */
 	public interface CoreRecorderCallback {
 
@@ -49,9 +51,10 @@ public class CoreRecorderManager implements ManagerInterface {
 		/**
 		 * 录音中的回调
 		 *
-		 * @param pcmBuffer
+		 * @param pcmBuffer 数据容器
+		 * @param size      真实大小
 		 */
-		void onRecorder(short[] pcmBuffer);
+		void onRecorder(short[] pcmBuffer, int size);
 
 
 		boolean onRecorderReady();
@@ -85,67 +88,7 @@ public class CoreRecorderManager implements ManagerInterface {
 	/**
 	 * 录音线程
 	 */
-	private HandlerThread recordThread;
-
-
-	/**
-	 * 录音中
-	 */
-	private Runnable mRecordingRunnable = new Runnable() {
-		@Override
-		public void run() {
-			if (mAudioRecorder != null && mAudioRecorder.getState() == AudioRecord.STATE_INITIALIZED) {
-
-				try {
-					mAudioRecorder.stop();
-					mAudioRecorder.startRecording();
-
-				} catch (Exception e) {
-					e.printStackTrace();
-					mCallback.onRecorderError(e.getMessage());
-
-					mAudioRecorder = null;
-				}
-			}
-			try {
-
-
-				for (int i = 0; i < 2; i++) {
-					if (mAudioRecorder == null) {
-						isRecord = false;
-						break;
-					}
-					mAudioRecorder.read(mPcmBuffer, 0, mPcmBuffer.length);
-				}
-
-				int nLen = -1;
-
-				for (; isRecord; ) {
-					nLen = mAudioRecorder.read(mPcmBuffer, 0, mPcmBuffer.length);
-					if (nLen == mPcmBuffer.length) {
-						mCallback.onRecorder(mPcmBuffer);
-					} else {
-						isRecord = false;
-					}
-				}
-
-
-			} catch (Exception e) {
-				e.printStackTrace();
-				mCallback.onRecorderError(e.getMessage());
-
-				isRecord = false;
-
-			} finally {
-				Log.d(TAG, isRecord + "");
-				unInitializeRecord();
-				onRecorderStop();
-
-			}
-		}
-	};
-
-
+	private RecorderThread recordThread;
 	/**
 	 * 是否正在录音
 	 */
@@ -167,26 +110,58 @@ public class CoreRecorderManager implements ManagerInterface {
 		}
 
 		isRecord = true;
+		recordThread = new RecorderThread(TAG);
+		recordThread.start();
+		mHandler = new RecorderHandler(recordThread.getLooper());
 
-
-		if (onRedorderReady()) {
-			if (initializeRecord()) {
-				initPcmBuffer();
-				if (onRecorderStart()) {
-					recordThread = new HandlerThread(TAG);
-					recordThread.start();
-					mHandler = new Handler(recordThread.getLooper());
-					mHandler.post(mRecordingRunnable);
-//					start();
-
-					return true;
-				}
-			}
-		}
-
-		isRecord = false;
+		mHandler.sendEmptyMessage(recording);
+//		isRecord = false;
 		return false;
 	}
+
+	public static final int recording = 0x787;
+
+	class RecorderHandler extends Handler {
+		RecorderHandler(Looper looper) {
+			super(looper);
+		}
+
+		@Override
+		public void handleMessage(Message msg) {
+			super.handleMessage(msg);
+
+			if (msg.what == recording) {
+				if (onRedorderReady()) {
+					if (initializeRecord()) {
+						initPcmBuffer();
+						if (onRecorderStart()) {
+
+							realRecording();
+
+						}
+					}
+				}
+
+				getLooper().quit();
+
+			}
+
+		}
+
+
+	}
+
+
+	/**
+	 * 录音线程
+	 */
+	class RecorderThread extends HandlerThread {
+		public RecorderThread(String name) {
+			super(name, android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+			MyLog.d(TAG, "RecorderThread");
+		}
+	}
+
 
 	/**
 	 * 结束录音
@@ -197,11 +172,74 @@ public class CoreRecorderManager implements ManagerInterface {
 		if (mHandler != null) {
 			mHandler.removeCallbacksAndMessages(null);
 		}
+		if (recordThread != null) {
+			recordThread.quit();
+		}
 		recordThread = null;
 
 
 	}
 
+
+	/**
+	 * 录音类
+	 */
+	private void realRecording() {
+		if (mAudioRecorder != null && mAudioRecorder.getState() == AudioRecord.STATE_INITIALIZED) {
+
+			try {
+				mAudioRecorder.stop();
+				mAudioRecorder.startRecording();
+
+//					mAudioRecorder.setPositionNotificationPeriod();
+//					mAudioRecorder.setNotificationMarkerPosition();
+//					mAudioRecorder.setRecordPositionUpdateListener();
+//					mAudioRecorder.read();
+			} catch (Exception e) {
+				e.printStackTrace();
+				mCallback.onRecorderError(e.getMessage());
+
+				mAudioRecorder = null;
+			}
+		}
+		try {
+
+
+			for (int i = 0; i < 2; i++) {
+				if (mAudioRecorder == null) {
+					isRecord = false;
+					break;
+				}
+				mAudioRecorder.read(mPcmBuffer, 0, mPcmBuffer.length);
+			}
+
+			int nLen = -1;
+
+			for (; isRecord; ) {
+				nLen = mAudioRecorder.read(mPcmBuffer, 0, mPcmBuffer.length);
+				if (nLen > 0) {
+					mCallback.onRecorder(mPcmBuffer.clone(), nLen);
+
+				} else {
+					isRecord = false;
+					MyLog.d(TAG, "长度不一致");
+				}
+			}
+
+
+		} catch (Exception e) {
+			e.printStackTrace();
+			mCallback.onRecorderError(e.getMessage());
+
+			isRecord = false;
+
+		} finally {
+			MyLog.d(TAG, "isRecord  " + isRecord);
+			unInitializeRecord();
+			onRecorderStop();
+
+		}
+	}
 
 	/**
 	 * 立刻停止录音
@@ -210,17 +248,20 @@ public class CoreRecorderManager implements ManagerInterface {
 	public void quickStop() {
 
 		isRecord = false;
-		if (recordThread != null) {
-			try {
-				recordThread.join();
-				mHandler.removeCallbacksAndMessages(null);
-
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+		if (mHandler != null) {
+			mHandler.removeCallbacksAndMessages(null);
+			mHandler.getLooper().quit();
 
 		}
-		recordThread = null;
+		if (recordThread != null) {
+			try {
+				recordThread.quit();
+				recordThread = null;
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+
 
 	}
 
@@ -259,7 +300,7 @@ public class CoreRecorderManager implements ManagerInterface {
 		}
 
 		int framePeriod = sample_rate * mRecorderBuilder.TIMER_INTERVAL / 1000;
-		mPcmBuffer = new short[framePeriod * bSamples / 8 * nChannels / 2];
+		mPcmBuffer = new short[framePeriod * bSamples * nChannels / 8];
 //		mPcmBuffer = new short[mRecorderBuilder.bufferSize / 4];
 	}
 
@@ -290,7 +331,8 @@ public class CoreRecorderManager implements ManagerInterface {
 		 */
 
 
-		private int mAudioSource = MediaRecorder.AudioSource.MIC;
+//		private int mAudioSource = MediaRecorder.AudioSource.MIC;
+		private int mAudioSource = MediaRecorder.AudioSource.VOICE_COMMUNICATION;
 		private int mSampleRate = SAMPLE_RATE_44K_HZ;
 		private int mChannelConfig = AudioFormat.CHANNEL_IN_MONO;
 		private int mAudioFormat = AudioFormat.ENCODING_PCM_16BIT;
@@ -299,7 +341,7 @@ public class CoreRecorderManager implements ManagerInterface {
 		private boolean mAutoFound = true;
 
 
-		private int TIMER_INTERVAL = 10;//10ms
+		private int TIMER_INTERVAL = 100;//10ms
 
 		/**
 		 * 设置回调时长间隔
@@ -381,7 +423,7 @@ public class CoreRecorderManager implements ManagerInterface {
 		 * 或者8bit。
 		 * 当然采样大小越大，那么信息量越多，音质也越高，现在主流的采样大小都是16bit，在低质量的语音传输的时候8bit足够了。
 		 *
-		 * @param audioFormat {@link android.media.AudioFormat#ENCODING_PCM_8BIT}
+		 * @param audioFormat {@link AudioFormat#ENCODING_PCM_8BIT}
 		 *                    {@link AudioFormat#ENCODING_PCM_16BIT}
 		 *                    {@link AudioFormat#ENCODING_PCM_FLOAT}
 		 * @return
@@ -412,104 +454,127 @@ public class CoreRecorderManager implements ManagerInterface {
 	 *
 	 * @return
 	 */
-	private synchronized boolean initializeRecord() {
+	private boolean initializeRecord() {
 		boolean isFound = false;
 		int sample_rate = mRecorderBuilder.mSampleRate;
 		int channel_config = mRecorderBuilder.mChannelConfig;
 		int format = mRecorderBuilder.mAudioFormat;
-		int bufsize = AudioRecord.getMinBufferSize(sample_rate, channel_config, format);
+		int bufsize = 0;
+		try {
+			bufsize = AudioRecord.getMinBufferSize(sample_rate, channel_config, format);
 
 
-		short bSamples;
-		if (format == AudioFormat.ENCODING_PCM_16BIT) {
-			bSamples = 16;
-		} else {
-			bSamples = 8;
-		}
-
-		short nChannels;
-		if (channel_config == AudioFormat.CHANNEL_IN_MONO) {
-			nChannels = 1;
-		} else {
-			nChannels = 2;
-		}
-		int framePeriod = sample_rate * mRecorderBuilder.TIMER_INTERVAL / 1000;
-		mRecorderBuilder.bufferSize = framePeriod * 2 * bSamples * nChannels / 8;
-
-
-		//  录音 通知周期 及 录音数据读取 buffer 的设定
-		// （重点：audioRecord.read()读取的大小最好是设定的缓冲区的一半，效果会好多）
-		if (AudioRecord.ERROR_BAD_VALUE != bufsize && AudioRecord.ERROR != bufsize) {
-
-			if (mRecorderBuilder.bufferSize < bufsize) {
-				mRecorderBuilder.bufferSize = bufsize;
+			short bSamples;
+			if (format == AudioFormat.ENCODING_PCM_16BIT) {
+				bSamples = 16;
+			} else {
+				bSamples = 8;
 			}
 
-			mAudioRecorder = new AudioRecord(
-					mRecorderBuilder.mAudioSource, sample_rate,
-					channel_config, format, mRecorderBuilder.bufferSize);
+			short nChannels;
+			if (channel_config == AudioFormat.CHANNEL_IN_MONO) {
+				nChannels = 1;
+			} else {
+				nChannels = 2;
+			}
+			int framePeriod = sample_rate * mRecorderBuilder.TIMER_INTERVAL / 1000;
+			mRecorderBuilder.bufferSize = framePeriod * 2 * bSamples * nChannels / 8;
 
 
-			return true;
-		}
+			//  录音 通知周期 及 录音数据读取 buffer 的设定
+			// （重点：audioRecord.read()读取的大小最好是设定的缓冲区的一半，效果会好多）
+			if (AudioRecord.ERROR_BAD_VALUE != bufsize && AudioRecord.ERROR != bufsize) {
+
+				if (mRecorderBuilder.bufferSize < bufsize) {
+					mRecorderBuilder.bufferSize = bufsize;
+				}
 
 
-		if (AudioRecord.ERROR_BAD_VALUE == bufsize && !mRecorderBuilder.mAutoFound) {
-			// TODO: 2019/6/12 给个失败的回调
-			return false;
-		}
+//				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+//					mAudioRecorder = new AudioRecord.Builder()
+//							.setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+//							.setAudioFormat(
+//									new AudioFormat.Builder()
+//											.setEncoding(format)
+//											.setSampleRate(sample_rate)
+//											.setChannelMask(channel_config)
+//											.build())
+//
+//							.setBufferSizeInBytes(2 *  mRecorderBuilder.bufferSize)
+//							.build();
+//
+//				} else {
+				mAudioRecorder = new AudioRecord(
+						mRecorderBuilder.mAudioSource, sample_rate,
+						channel_config, format, mRecorderBuilder.bufferSize);
 
-		for (int x = 0; !isFound && x < mRecorderBuilder.formats.length; x++) {
-			format = mRecorderBuilder.formats[x];
-			for (int y = 0; !isFound && y < mRecorderBuilder.configs.length; y++) {
-				channel_config = mRecorderBuilder.configs[y];
-
-				for (int z = 0; !isFound && z < mRecorderBuilder.sampleRates.length; z++) {
-
-					sample_rate = mRecorderBuilder.sampleRates[z];
+//				}
 
 
-					bufsize = AudioRecord.getMinBufferSize(sample_rate, channel_config, format);
+				return true;
+			}
 
 
-					if (AudioRecord.ERROR_BAD_VALUE == bufsize) {
-						continue;
-					}
-					if (AudioRecord.ERROR == bufsize) {
-						continue;
-					}
+			if (AudioRecord.ERROR_BAD_VALUE == bufsize && !mRecorderBuilder.mAutoFound) {
+				// TODO: 2019/6/12 给个失败的回调
+				return false;
+			}
 
-					if (mAudioRecorder != null) {
-						unInitializeRecord();
-					}
+			for (int x = 0; !isFound && x < mRecorderBuilder.formats.length; x++) {
+				format = mRecorderBuilder.formats[x];
+				for (int y = 0; !isFound && y < mRecorderBuilder.configs.length; y++) {
+					channel_config = mRecorderBuilder.configs[y];
 
-					try {
-						if (mRecorderBuilder.bufferSize < bufsize) {
-							mRecorderBuilder.bufferSize = bufsize;
-						}
-						mAudioRecorder = new AudioRecord(
-								mRecorderBuilder.mAudioSource, sample_rate,
-								channel_config, format, mRecorderBuilder.bufferSize);
+					for (int z = 0; !isFound && z < mRecorderBuilder.sampleRates.length; z++) {
 
-						int state = mAudioRecorder.getState();
-						if (state != AudioRecord.STATE_INITIALIZED) {
+						sample_rate = mRecorderBuilder.sampleRates[z];
+
+
+						bufsize = AudioRecord.getMinBufferSize(sample_rate, channel_config, format);
+
+
+						if (AudioRecord.ERROR_BAD_VALUE == bufsize) {
 							continue;
 						}
-					} catch (IllegalStateException e) {
-						mAudioRecorder = null;
-						continue;
+						if (AudioRecord.ERROR == bufsize) {
+							continue;
+						}
+
+						if (mAudioRecorder != null) {
+							unInitializeRecord();
+						}
+
+						try {
+							if (mRecorderBuilder.bufferSize < bufsize) {
+								mRecorderBuilder.bufferSize = bufsize;
+							}
+							mAudioRecorder = new AudioRecord(
+									mRecorderBuilder.mAudioSource, sample_rate,
+									channel_config, format, mRecorderBuilder.bufferSize);
+
+							int state = mAudioRecorder.getState();
+							if (state != AudioRecord.STATE_INITIALIZED) {
+								continue;
+							}
+						} catch (IllegalStateException e) {
+							mAudioRecorder = null;
+							continue;
+						}
+						isFound = true;
+						break;
 					}
-					isFound = true;
-					break;
 				}
 			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			isFound = false;
 		}
-
 
 		return isFound;
 	}
 
 	private boolean onRecorderStart() {
+		MyLog.d(TAG, "onRecorderStart");
 
 		if (mCallback != null) {
 
@@ -520,6 +585,7 @@ public class CoreRecorderManager implements ManagerInterface {
 	}
 
 	private boolean onRedorderReady() {
+		MyLog.d(TAG, "onRedorderReady " + Thread.currentThread().getName());
 
 		if (mCallback != null) {
 

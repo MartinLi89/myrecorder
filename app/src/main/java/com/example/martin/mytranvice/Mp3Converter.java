@@ -24,7 +24,7 @@ public class Mp3Converter {
 	 * @param channel       number of channels
 	 * @param mode          0 = CBR, 1 = VBR, 2 = ABR.  default = 0
 	 * @param outSampleRate output sample rate in Hz
-	 * @param outBitRate    rate compression ratio in KHz
+	 * @param outBitRate    rate compression ratio in KHz  96  128kbps 等
 	 * @param quality       quality=0..9. 0=best (very slow). 9=worst.<br />
 	 *                      recommended:<br />
 	 *                      2 near-best quality, not too slow<br />

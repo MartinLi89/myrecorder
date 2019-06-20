@@ -19,7 +19,7 @@
         app:layout_constraintVertical_bias="0.345"/>
 
     <Button
-        android:id="@+id/button"
+        android:id="@+id/luying"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
@@ -29,23 +29,23 @@
         app:layout_constraintTop_toTopOf="parent"/>
 
     <Button
-        android:id="@+id/button2"
+        android:id="@+id/shifang"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
         android:text="释放"
-        app:layout_constraintStart_toEndOf="@+id/button3"
+        app:layout_constraintStart_toEndOf="@+id/zhuanma"
         app:layout_constraintTop_toTopOf="parent"/>
 
     <Button
-        android:id="@+id/button3"
+        android:id="@+id/zhuanma"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
         android:text="转码"
-        app:layout_constraintStart_toEndOf="@+id/button"
+        app:layout_constraintStart_toEndOf="@+id/luying"
         app:layout_constraintTop_toTopOf="parent"/>
 
 
