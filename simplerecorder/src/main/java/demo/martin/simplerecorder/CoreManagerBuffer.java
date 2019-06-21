@@ -28,6 +28,10 @@ public class CoreManagerBuffer implements ManagerInterface {
 		@Override
 		public void onRecorder(short[] pcmBuffer, int size) {
 
+			if (true) {
+				return;
+			}
+
 			if (saveFileThread != null) {
 				saveBuffer(pcmBuffer, size);
 			}
@@ -40,6 +44,17 @@ public class CoreManagerBuffer implements ManagerInterface {
 				managerCallback.onRecorder(pcmBuffer, size);
 			}
 
+			if (!saveHandler.isSaving()) {
+
+				saveHandler.sendMessage(Message.obtain(saveHandler, SaveFileThread.SAVEING));
+			}
+		}
+
+		@Override
+		public void onRecorder(byte[] pcmBuffer, int size) {
+			if (saveFileThread != null) {
+				saveFileThread.saveByes(pcmBuffer, size);
+			}
 			if (!saveHandler.isSaving()) {
 
 				saveHandler.sendMessage(Message.obtain(saveHandler, SaveFileThread.SAVEING));
@@ -88,7 +103,7 @@ public class CoreManagerBuffer implements ManagerInterface {
 		@Override
 		public void onRecorderStop() {
 			// TODO: 2019/6/19 存储线程结束
-			saveHandler.sendMessageDelayed(Message.obtain(saveHandler,SaveFileThread.STOP), 3000);
+			saveHandler.sendMessageDelayed(Message.obtain(saveHandler, SaveFileThread.STOP), 500);
 			if (managerCallback != null) {
 				managerCallback.onRecorderStop();
 			}
@@ -98,6 +113,7 @@ public class CoreManagerBuffer implements ManagerInterface {
 	private void saveBuffer(short[] pcmBuffer, int size) {
 		byte[] bytes = BytesTransUtil.getInstance().shorts2Bytes(pcmBuffer);
 
+		//short转byte 注意大小变化
 		saveFileThread.saveByes(bytes, size);
 //		saveFile.saveByet(bytes, 0, size);
 	}
@@ -107,7 +123,7 @@ public class CoreManagerBuffer implements ManagerInterface {
 
 	SaveFileThread.SaveHandler saveHandler;
 
-	public CoreManagerBuffer(CoreRecorderManager manager) {
+	public CoreManagerBuffer(ManagerInterface manager) {
 		mManager = manager;
 		managerCallback = manager.getmCallback();
 		manager.setCoreRecorderCallback(coreRecorderCallback);
@@ -128,6 +144,11 @@ public class CoreManagerBuffer implements ManagerInterface {
 	public void setCoreRecorderCallback(CoreRecorderManager.CoreRecorderCallback callback) {
 		mCallBack = callback;
 
+	}
+
+	@Override
+	public CoreRecorderManager.CoreRecorderCallback getmCallback() {
+		return null;
 	}
 
 

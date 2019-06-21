@@ -3,7 +3,6 @@ package demo.martin.simplerecorder;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
-import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
@@ -56,6 +55,8 @@ public class CoreRecorderManager implements ManagerInterface {
 		 */
 		void onRecorder(short[] pcmBuffer, int size);
 
+		void onRecorder(byte[] pcmBuffer, int size);
+
 
 		boolean onRecorderReady();
 
@@ -75,6 +76,7 @@ public class CoreRecorderManager implements ManagerInterface {
 		void onRecorderStop();
 	}
 
+	@Override
 	public CoreRecorderCallback getmCallback() {
 		return mCallback;
 	}
@@ -113,10 +115,10 @@ public class CoreRecorderManager implements ManagerInterface {
 		recordThread = new RecorderThread(TAG);
 		recordThread.start();
 		mHandler = new RecorderHandler(recordThread.getLooper());
-
 		mHandler.sendEmptyMessage(recording);
+
 //		isRecord = false;
-		return false;
+		return isRecord;
 	}
 
 	public static final int recording = 0x787;
@@ -185,16 +187,18 @@ public class CoreRecorderManager implements ManagerInterface {
 	 * 录音类
 	 */
 	private void realRecording() {
+//		AudioRecord record = new AudioRecord(mRecorderBuilder.mAudioSource
+//				, mRecorderBuilder.mSampleRate
+//				, mRecorderBuilder.mChannelConfig
+//				, mRecorderBuilder.mAudioFormat
+//				, mRecorderBuilder.bufferSize);
+//		mAudioRecorder = record;
 		if (mAudioRecorder != null && mAudioRecorder.getState() == AudioRecord.STATE_INITIALIZED) {
 
 			try {
 				mAudioRecorder.stop();
 				mAudioRecorder.startRecording();
 
-//					mAudioRecorder.setPositionNotificationPeriod();
-//					mAudioRecorder.setNotificationMarkerPosition();
-//					mAudioRecorder.setRecordPositionUpdateListener();
-//					mAudioRecorder.read();
 			} catch (Exception e) {
 				e.printStackTrace();
 				mCallback.onRecorderError(e.getMessage());
@@ -214,11 +218,14 @@ public class CoreRecorderManager implements ManagerInterface {
 			}
 
 			int nLen = -1;
+			byte[] bytes = new byte[mRecorderBuilder.bufferSize];
+
 
 			for (; isRecord; ) {
-				nLen = mAudioRecorder.read(mPcmBuffer, 0, mPcmBuffer.length);
+				nLen = mAudioRecorder.read(bytes, 0, bytes.length);
 				if (nLen > 0) {
-					mCallback.onRecorder(mPcmBuffer.clone(), nLen);
+
+					mCallback.onRecorder(bytes.clone(), nLen);
 
 				} else {
 					isRecord = false;
@@ -282,26 +289,33 @@ public class CoreRecorderManager implements ManagerInterface {
 	 */
 	private void initPcmBuffer() {
 
-		int channel_config = mAudioRecorder.getChannelCount();
-		int format = mAudioRecorder.getAudioFormat();//mRecorderBuilder.mAudioFormat;
-		int sample_rate = mAudioRecorder.getSampleRate();
-		short bSamples;
-		short nChannels;
-		if (format == AudioFormat.ENCODING_PCM_16BIT) {
-			bSamples = 16;
-		} else {
-			bSamples = 8;
-		}
+//		int channel_config = mAudioRecorder.getChannelCount();
+//		int format = mAudioRecorder.getAudioFormat();//mRecorderBuilder.mAudioFormat;
+//		int sample_rate = mAudioRecorder.getSampleRate();
+//		short bSamples;
+//		short nChannels;
+//		if (format == AudioFormat.ENCODING_PCM_16BIT) {
+//			bSamples = 16;
+//		} else {
+//			bSamples = 8;
+//		}
+//
+//		if (channel_config == AudioFormat.CHANNEL_IN_MONO) {
+//			nChannels = 1;
+//		} else {
+//			nChannels = 2;
+//		}
+//
+//		//每次取样 大小 单位bit
+//		int everyTimeSize = bSamples * nChannels;
+//		//每秒钟取样大小 单位 字节
+//		int everysecondSize = sample_rate * everyTimeSize / 8;
+//
+//		//自定义单位时间 取样大小
+//		int framePeriod = everysecondSize * mRecorderBuilder.TIMER_INTERVAL / 1000;
 
-		if (channel_config == AudioFormat.CHANNEL_IN_MONO) {
-			nChannels = 1;
-		} else {
-			nChannels = 2;
-		}
-
-		int framePeriod = sample_rate * mRecorderBuilder.TIMER_INTERVAL / 1000;
-		mPcmBuffer = new short[framePeriod * bSamples * nChannels / 8];
-//		mPcmBuffer = new short[mRecorderBuilder.bufferSize / 4];
+//		mPcmBuffer = new short[framePeriod];
+		mPcmBuffer = new short[mRecorderBuilder.bufferSize ];
 	}
 
 
@@ -477,9 +491,14 @@ public class CoreRecorderManager implements ManagerInterface {
 			} else {
 				nChannels = 2;
 			}
-			int framePeriod = sample_rate * mRecorderBuilder.TIMER_INTERVAL / 1000;
-			mRecorderBuilder.bufferSize = framePeriod * 2 * bSamples * nChannels / 8;
 
+			int everyTimeSize = bSamples * nChannels;
+			int everySecondSize = everyTimeSize * sample_rate / 8;
+
+			int framePeriod = everySecondSize * mRecorderBuilder.TIMER_INTERVAL / 1000;
+
+
+			mRecorderBuilder.bufferSize = framePeriod;
 
 			//  录音 通知周期 及 录音数据读取 buffer 的设定
 			// （重点：audioRecord.read()读取的大小最好是设定的缓冲区的一半，效果会好多）
@@ -489,24 +508,12 @@ public class CoreRecorderManager implements ManagerInterface {
 					mRecorderBuilder.bufferSize = bufsize;
 				}
 
-
-//				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-//					mAudioRecorder = new AudioRecord.Builder()
-//							.setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
-//							.setAudioFormat(
-//									new AudioFormat.Builder()
-//											.setEncoding(format)
-//											.setSampleRate(sample_rate)
-//											.setChannelMask(channel_config)
-//											.build())
-//
-//							.setBufferSizeInBytes(2 *  mRecorderBuilder.bufferSize)
-//							.build();
-//
-//				} else {
 				mAudioRecorder = new AudioRecord(
-						mRecorderBuilder.mAudioSource, sample_rate,
-						channel_config, format, mRecorderBuilder.bufferSize);
+						mRecorderBuilder.mAudioSource,
+						mRecorderBuilder.mSampleRate,
+						mRecorderBuilder.mChannelConfig,
+						mRecorderBuilder.mAudioFormat,
+						mRecorderBuilder.bufferSize);
 
 //				}
 
@@ -517,6 +524,7 @@ public class CoreRecorderManager implements ManagerInterface {
 
 			if (AudioRecord.ERROR_BAD_VALUE == bufsize && !mRecorderBuilder.mAutoFound) {
 				// TODO: 2019/6/12 给个失败的回调
+				MyLog.e(TAG, "未找到录音机");
 				return false;
 			}
 

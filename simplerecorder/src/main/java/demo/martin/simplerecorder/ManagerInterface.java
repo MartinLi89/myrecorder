@@ -8,6 +8,7 @@ public interface ManagerInterface {
 
 	void setCoreRecorderCallback(CoreRecorderManager.CoreRecorderCallback callback);
 
+	CoreRecorderManager.CoreRecorderCallback getmCallback();
 
 	boolean recorderStart();
 	void recorderStop();

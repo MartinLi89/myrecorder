@@ -122,6 +122,7 @@ public class AudioBufferSave {
 				randomAccessFile.close();
 				randomAccessFile = null;
 			}
+
 			isInited = false;
 		}
 	}
@@ -305,6 +306,7 @@ public class AudioBufferSave {
 		header[43] = (byte) ((totalAudioLen >> 24) & 0xff);
 
 		rand.write(header, 0, 44);
+		onSuccess(rand.length());
 	}
 
 
